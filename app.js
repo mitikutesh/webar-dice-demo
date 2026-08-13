@@ -9,7 +9,6 @@ let die = null;
 let target = null;
 let rolling = false;
 let tracking = false;
-let targetBlobUrl = null;
 let arStarted = false;
 
 $('qrurl').textContent = location.href;
@@ -17,36 +16,11 @@ if (window.QRCode) new QRCode($('qrcode'), { text: location.href, width: 180, he
 
 function setStatus(text) { status.textContent = text; }
 
-function loadImage(img) {
-  if (img.complete && img.naturalWidth > 0) return Promise.resolve(img);
-  return new Promise((resolve, reject) => {
-    img.addEventListener('load', resolve, { once: true });
-    img.addEventListener('error', reject, { once: true });
-  });
-}
-
-async function compileCustomTarget() {
-  // In MindAR 1.2.x the compiler is exposed as MINDAR.IMAGE.Compiler.
-  const Compiler = window.MINDAR?.IMAGE?.Compiler;
-  if (!Compiler) throw new Error('MindAR compiler did not load. Please refresh and try again.');
-  const img = $('targetImage');
-  await loadImage(img);
-  setStatus('Preparing the DICE AR target…');
-  const compiler = new Compiler();
-  await compiler.compileImageTargets([img], (progress) => {
-    setStatus(`Preparing DICE AR target… ${Math.round(progress * 100)}%`);
-  });
-  const buffer = await compiler.exportData();
-  if (targetBlobUrl) URL.revokeObjectURL(targetBlobUrl);
-  targetBlobUrl = URL.createObjectURL(new Blob([buffer], { type: 'application/octet-stream' }));
-  return targetBlobUrl;
-}
-
-function buildScene(targetUrl) {
+function buildScene() {
   const root = $('arRoot');
   scene = document.createElement('a-scene');
   scene.id = 'arScene';
-  scene.setAttribute('mindar-image', `imageTargetSrc: ${targetUrl}; autoStart: true; uiLoading: no; uiError: no; uiScanning: no; maxTrack: 1; warmupTolerance: 2; missTolerance: 5`);
+  scene.setAttribute('mindar-image', 'imageTargetSrc: ./target.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no; maxTrack: 1; warmupTolerance: 2; missTolerance: 8');
   scene.setAttribute('color-space', 'sRGB');
   scene.setAttribute('renderer', 'colorManagement: true, physicallyCorrectLights; alpha: true');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
@@ -72,7 +46,7 @@ function buildScene(targetUrl) {
 
   die = document.createElement('a-entity');
   die.id = 'die';
-  die.setAttribute('position', '0 0.15 0');
+  die.setAttribute('position', '0 0.15 0.05');
   die.setAttribute('scale', '0.45 0.45 0.45');
   die.innerHTML = `
     <a-box width="0.7" height="0.7" depth="0.7" color="#f5f5f5" material="roughness: 0.25"></a-box>
@@ -96,14 +70,12 @@ async function startWebAR() {
   arStarted = true;
   home.classList.add('hidden');
   arUi.classList.remove('hidden');
-  setStatus('Loading WebAR…');
+  setStatus('Starting camera…');
   try {
-    const targetUrl = await compileCustomTarget();
-    buildScene(targetUrl);
-    setStatus('Starting camera…');
+    buildScene();
   } catch (error) {
     console.error(error);
-    setStatus(`Could not prepare WebAR: ${error.message}`);
+    setStatus(`Could not start WebAR: ${error.message}`);
     arStarted = false;
   }
 }
