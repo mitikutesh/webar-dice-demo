@@ -16,11 +16,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
       - name: Install canvas system dependencies
         run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
       - name: Install compiler dependencies
-        run: npm install --no-save mind-ar@1.2.5 canvas@2.11.2
+        run: npm install --no-save --no-package-lock mind-ar@1.2.5 canvas@2.11.2
       - name: Compile target.mind
         run: node scripts/compile-target.mjs
       - name: Commit generated target
