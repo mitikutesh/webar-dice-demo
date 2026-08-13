@@ -9,35 +9,72 @@ const die = $('die');
 const target = $('target');
 let rolling = false;
 let tracking = false;
+let targetBlobUrl = null;
+let arStarted = false;
 
 $('qrurl').textContent = location.href;
 if (window.QRCode) new QRCode($('qrcode'), { text: location.href, width: 180, height: 180 });
 
 function setStatus(text) { status.textContent = text; }
 
-function startWebAR() {
-  home.classList.add('hidden');
-  scene.classList.remove('hidden');
-  arUi.classList.remove('hidden');
-  setStatus('Starting camera…');
-  const system = scene.systems['mindar-image-system'];
-  if (!system) {
-    setStatus('WebAR engine failed to load. Check your connection and refresh.');
-    return;
-  }
-  scene.addEventListener('arReady', () => setStatus('Point your camera at the printed AR target.'), { once: true });
-  scene.addEventListener('arError', () => setStatus('Camera/AR could not start. Allow camera access and reload.'), { once: true });
+function loadImage(img) {
+  if (img.complete && img.naturalWidth > 0) return Promise.resolve(img);
+  return new Promise((resolve, reject) => {
+    img.addEventListener('load', resolve, { once: true });
+    img.addEventListener('error', reject, { once: true });
+  });
+}
+
+async function compileCustomTarget() {
+  if (!window.MINDAR?.Compiler) throw new Error('MindAR compiler did not load. Refresh the page.');
+  const img = $('targetImage');
+  await loadImage(img);
+  setStatus('Preparing the DICE AR target…');
+  const compiler = new window.MINDAR.Compiler();
+  await compiler.compileImageTargets([img], (progress) => {
+    setStatus(`Preparing DICE AR target… ${Math.round(progress * 100)}%`);
+  });
+  const buffer = await compiler.exportData();
+  targetBlobUrl = URL.createObjectURL(new Blob([buffer], { type: 'application/octet-stream' }));
+  return targetBlobUrl;
+}
+
+function wireTargetEvents() {
   target.addEventListener('targetFound', () => {
     tracking = true;
-    setStatus('Target found! Tap Roll Dice.');
+    setStatus('DICE AR target found! Tap Roll Dice.');
     roll.classList.remove('hidden');
-  });
+  }, { once: false });
   target.addEventListener('targetLost', () => {
     tracking = false;
-    setStatus('Target lost — point the camera at the target again.');
+    setStatus('Target lost — point the camera at the DICE AR card again.');
     roll.classList.add('hidden');
-  });
-  system.start();
+  }, { once: false });
+}
+
+async function startWebAR() {
+  if (arStarted) return;
+  arStarted = true;
+  home.classList.add('hidden');
+  arUi.classList.remove('hidden');
+  scene.classList.remove('hidden');
+  setStatus('Loading WebAR…');
+  try {
+    const targetUrl = await compileCustomTarget();
+    scene.setAttribute('mindar-image', `imageTargetSrc: ${targetUrl}; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; maxTrack: 1; warmupTolerance: 2; missTolerance: 3`);
+    wireTargetEvents();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const system = scene.systems['mindar-image-system'];
+    if (!system) throw new Error('WebAR engine failed to initialize.');
+    scene.addEventListener('arReady', () => setStatus('Point your camera at the printed DICE AR target.'), { once: true });
+    scene.addEventListener('arError', () => setStatus('Camera/AR could not start. Allow camera access and reload.'), { once: true });
+    await system.start();
+    setStatus('Point your camera at the printed DICE AR target.');
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not prepare WebAR: ${error.message}`);
+    arStarted = false;
+  }
 }
 
 function rollDice() {
