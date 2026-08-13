@@ -1,12 +1,12 @@
 const $ = (id) => document.getElementById(id);
 const home = $('home');
-const scene = $('arScene');
 const arUi = $('arUi');
 const status = $('status');
 const result = $('result');
 const roll = $('roll');
-const die = $('die');
-const target = $('target');
+let scene = null;
+let die = null;
+let target = null;
 let rolling = false;
 let tracking = false;
 let targetBlobUrl = null;
@@ -26,30 +26,69 @@ function loadImage(img) {
 }
 
 async function compileCustomTarget() {
-  if (!window.MINDAR?.Compiler) throw new Error('MindAR compiler did not load. Refresh the page.');
+  // In MindAR 1.2.x the compiler is exposed as MINDAR.IMAGE.Compiler.
+  const Compiler = window.MINDAR?.IMAGE?.Compiler;
+  if (!Compiler) throw new Error('MindAR compiler did not load. Please refresh and try again.');
   const img = $('targetImage');
   await loadImage(img);
   setStatus('Preparing the DICE AR target…');
-  const compiler = new window.MINDAR.Compiler();
+  const compiler = new Compiler();
   await compiler.compileImageTargets([img], (progress) => {
     setStatus(`Preparing DICE AR target… ${Math.round(progress * 100)}%`);
   });
   const buffer = await compiler.exportData();
+  if (targetBlobUrl) URL.revokeObjectURL(targetBlobUrl);
   targetBlobUrl = URL.createObjectURL(new Blob([buffer], { type: 'application/octet-stream' }));
   return targetBlobUrl;
 }
 
-function wireTargetEvents() {
+function buildScene(targetUrl) {
+  const root = $('arRoot');
+  scene = document.createElement('a-scene');
+  scene.id = 'arScene';
+  scene.setAttribute('mindar-image', `imageTargetSrc: ${targetUrl}; autoStart: true; uiLoading: no; uiError: no; uiScanning: no; maxTrack: 1; warmupTolerance: 2; missTolerance: 5`);
+  scene.setAttribute('color-space', 'sRGB');
+  scene.setAttribute('renderer', 'colorManagement: true, physicallyCorrectLights; alpha: true');
+  scene.setAttribute('vr-mode-ui', 'enabled: false');
+  scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
+
+  const camera = document.createElement('a-camera');
+  camera.setAttribute('position', '0 0 0');
+  camera.setAttribute('look-controls', 'enabled: false');
+
+  target = document.createElement('a-entity');
+  target.id = 'target';
+  target.setAttribute('mindar-image-target', 'targetIndex: 0');
   target.addEventListener('targetFound', () => {
     tracking = true;
     setStatus('DICE AR target found! Tap Roll Dice.');
     roll.classList.remove('hidden');
-  }, { once: false });
+  });
   target.addEventListener('targetLost', () => {
     tracking = false;
     setStatus('Target lost — point the camera at the DICE AR card again.');
     roll.classList.add('hidden');
-  }, { once: false });
+  });
+
+  die = document.createElement('a-entity');
+  die.id = 'die';
+  die.setAttribute('position', '0 0.15 0');
+  die.setAttribute('scale', '0.45 0.45 0.45');
+  die.innerHTML = `
+    <a-box width="0.7" height="0.7" depth="0.7" color="#f5f5f5" material="roughness: 0.25"></a-box>
+    <a-text value="1" align="center" color="#111" width="1.5" position="0 0 0.356"></a-text>
+    <a-text value="6" align="center" color="#111" width="1.5" position="0 0 -0.356" rotation="0 180 0"></a-text>
+    <a-text value="3" align="center" color="#111" width="1.5" position="0.356 0 0" rotation="0 90 0"></a-text>
+    <a-text value="4" align="center" color="#111" width="1.5" position="-0.356 0 0" rotation="0 -90 0"></a-text>
+    <a-text value="2" align="center" color="#111" width="1.5" position="0 0.356 0" rotation="-90 0 0"></a-text>
+    <a-text value="5" align="center" color="#111" width="1.5" position="0 -0.356 0" rotation="90 0 0"></a-text>`;
+  target.appendChild(die);
+  scene.appendChild(camera);
+  scene.appendChild(target);
+  root.appendChild(scene);
+
+  scene.addEventListener('arReady', () => setStatus('Point your camera at the printed DICE AR target.'), { once: true });
+  scene.addEventListener('arError', () => setStatus('Camera/AR could not start. Allow camera access and reload.'), { once: true });
 }
 
 async function startWebAR() {
@@ -57,19 +96,11 @@ async function startWebAR() {
   arStarted = true;
   home.classList.add('hidden');
   arUi.classList.remove('hidden');
-  scene.classList.remove('hidden');
   setStatus('Loading WebAR…');
   try {
     const targetUrl = await compileCustomTarget();
-    scene.setAttribute('mindar-image', `imageTargetSrc: ${targetUrl}; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; maxTrack: 1; warmupTolerance: 2; missTolerance: 3`);
-    wireTargetEvents();
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    const system = scene.systems['mindar-image-system'];
-    if (!system) throw new Error('WebAR engine failed to initialize.');
-    scene.addEventListener('arReady', () => setStatus('Point your camera at the printed DICE AR target.'), { once: true });
-    scene.addEventListener('arError', () => setStatus('Camera/AR could not start. Allow camera access and reload.'), { once: true });
-    await system.start();
-    setStatus('Point your camera at the printed DICE AR target.');
+    buildScene(targetUrl);
+    setStatus('Starting camera…');
   } catch (error) {
     console.error(error);
     setStatus(`Could not prepare WebAR: ${error.message}`);
@@ -78,7 +109,7 @@ async function startWebAR() {
 }
 
 function rollDice() {
-  if (!tracking || rolling) return;
+  if (!tracking || rolling || !die?.object3D) return;
   rolling = true;
   roll.classList.add('hidden');
   setStatus('Rolling…');
@@ -131,4 +162,3 @@ $('start').onclick = startWebAR;
 $('preview').onclick = preview;
 roll.onclick = rollDice;
 $('exit').onclick = () => location.reload();
-window.addEventListener('resize', () => scene.components?.['mindar-image']?.resize?.());
