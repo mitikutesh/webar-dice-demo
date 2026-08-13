@@ -1,16 +1,97 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.178.0/build/three.module.js';
+const $ = (id) => document.getElementById(id);
+const home = $('home');
+const scene = $('arScene');
+const arUi = $('arUi');
+const status = $('status');
+const result = $('result');
+const roll = $('roll');
+const die = $('die');
+const target = $('target');
+let rolling = false;
+let tracking = false;
 
-const $=id=>document.getElementById(id); const home=$('home'),hud=$('hud'),canvas=$('c');
-let renderer,scene,camera,reticle,dice,hitTestSource=null,localSpace=null,ar=false,placed=false,rolling=false;
-const status=$('status'),result=$('result'),roll=$('roll');
-$('qrurl').textContent=location.href; if(window.QRCode)new QRCode($('qrcode'),{text:location.href,width:180,height:180});
+$('qrurl').textContent = location.href;
+if (window.QRCode) new QRCode($('qrcode'), { text: location.href, width: 180, height: 180 });
 
-function makeDie(){const g=new THREE.Group(); const mat=new THREE.MeshStandardMaterial({color:0xf5f5f5,roughness:.28,metalness:.05}); const m=new THREE.Mesh(new THREE.BoxGeometry(.14,.14,.14),mat); g.add(m); const edges=new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:0x333333})); g.add(edges); return g;}
-function init(){renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);renderer.xr.enabled=true;scene=new THREE.Scene();camera=new THREE.PerspectiveCamera();scene.add(new THREE.HemisphereLight(0xffffff,0x555577,2));const dl=new THREE.DirectionalLight(0xffffff,2);dl.position.set(1,3,2);scene.add(dl);dice=makeDie();dice.visible=false;scene.add(dice);reticle=new THREE.Mesh(new THREE.RingGeometry(.08,.1,32),new THREE.MeshBasicMaterial({color:0xffffff}));reticle.rotation.x=-Math.PI/2;reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);renderer.setAnimationLoop(frame);}
-async function startAR(){if(!navigator.xr){$('compat').textContent='WebXR AR is not available in this browser. Use 3D preview instead.';return}try{const ok=await navigator.xr.isSessionSupported('immersive-ar');if(!ok){$('compat').textContent='Immersive AR is not supported on this device/browser.';return}init();const session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:document.body}});renderer.xr.setReferenceSpaceType('local');await renderer.xr.setSession(session);ar=true;home.classList.add('hidden');hud.classList.remove('hidden');canvas.classList.remove('hidden');status.textContent='Move your phone until the ring appears, then tap the screen.';session.addEventListener('end',()=>location.reload());session.addEventListener('select',place);session.requestReferenceSpace('viewer').then(v=>session.requestHitTestSource({space:v})).then(s=>hitTestSource=s);session.requestReferenceSpace('local').then(s=>localSpace=s);}catch(e){$('compat').textContent='Could not start AR: '+e.message;}}
-function place(){if(placed||!reticle.visible)return;placed=true;dice.position.setFromMatrixPosition(reticle.matrix);dice.visible=true;reticle.visible=false;status.textContent='Die placed. Tap Roll Dice.';roll.classList.remove('hidden');}
-function frame(t,frame){if(ar&&frame&&hitTestSource&&localSpace){const hits=frame.getHitTestResults(hitTestSource);if(hits.length){const pose=hits[0].getPose(localSpace);reticle.visible=true;reticle.matrix.fromArray(pose.transform.matrix);}}renderer.render(scene,camera);}
-function doRoll(){if(rolling||!placed)return;rolling=true;roll.classList.add('hidden');status.textContent='Rolling…';const n=1+Math.floor(Math.random()*6);const start=performance.now(),baseY=dice.position.y;const sx=dice.rotation.x,sy=dice.rotation.y;function anim(now){const p=Math.min(1,(now-start)/1100),e=1-Math.pow(1-p,3);dice.rotation.x=sx+Math.PI*5*e;dice.rotation.y=sy+Math.PI*7*e;dice.position.y=baseY+Math.sin(p*Math.PI)*.16;if(p<1)requestAnimationFrame(anim);else{dice.rotation.set(sx,sy,0);dice.position.y=baseY;result.textContent=n;status.textContent=`You rolled ${n}!`;roll.textContent='ROLL AGAIN';roll.classList.remove('hidden');rolling=false;}}requestAnimationFrame(anim);}
-function preview(){home.classList.add('hidden');hud.classList.remove('hidden');$('previewStage').classList.remove('hidden');const d=document.createElement('div');d.className='preview-die';[1,6,3,4,2,5].forEach((n,i)=>{const f=document.createElement('div');f.className=['face front','face back','face right','face left','face top','face bottom'][i];f.textContent=n;d.appendChild(f)});$('previewStage').appendChild(d);status.textContent='3D preview — tap Roll Dice';roll.classList.remove('hidden');roll.onclick=()=>{result.textContent=1+Math.floor(Math.random()*6);};}
-$('start').onclick=startAR;$('preview').onclick=preview;roll.onclick=doRoll;$('exit').onclick=()=>location.reload();$('again').onclick=()=>location.reload();addEventListener('resize',()=>renderer?.setSize(innerWidth,innerHeight));
-if(!navigator.xr)$('compat').textContent='Tip: Chrome on a supported Android phone is the easiest AR test target.';
+function setStatus(text) { status.textContent = text; }
+
+function startWebAR() {
+  home.classList.add('hidden');
+  scene.classList.remove('hidden');
+  arUi.classList.remove('hidden');
+  setStatus('Starting camera…');
+  const system = scene.systems['mindar-image-system'];
+  if (!system) {
+    setStatus('WebAR engine failed to load. Check your connection and refresh.');
+    return;
+  }
+  scene.addEventListener('arReady', () => setStatus('Point your camera at the printed AR target.'), { once: true });
+  scene.addEventListener('arError', () => setStatus('Camera/AR could not start. Allow camera access and reload.'), { once: true });
+  target.addEventListener('targetFound', () => {
+    tracking = true;
+    setStatus('Target found! Tap Roll Dice.');
+    roll.classList.remove('hidden');
+  });
+  target.addEventListener('targetLost', () => {
+    tracking = false;
+    setStatus('Target lost — point the camera at the target again.');
+    roll.classList.add('hidden');
+  });
+  system.start();
+}
+
+function rollDice() {
+  if (!tracking || rolling) return;
+  rolling = true;
+  roll.classList.add('hidden');
+  setStatus('Rolling…');
+  const n = 1 + Math.floor(Math.random() * 6);
+  const start = performance.now();
+  const fromX = die.object3D.rotation.x;
+  const fromY = die.object3D.rotation.y;
+  const fromZ = die.object3D.rotation.z;
+  const turnsX = Math.PI * (4 + Math.floor(Math.random() * 3));
+  const turnsY = Math.PI * (5 + Math.floor(Math.random() * 3));
+  const turnsZ = Math.PI * (3 + Math.floor(Math.random() * 3));
+  function animate(now) {
+    const p = Math.min(1, (now - start) / 1000);
+    const eased = 1 - Math.pow(1 - p, 3);
+    die.object3D.rotation.set(fromX + turnsX * eased, fromY + turnsY * eased, fromZ + turnsZ * eased);
+    die.object3D.position.y = 0.15 + Math.sin(p * Math.PI) * 0.18;
+    if (p < 1) requestAnimationFrame(animate);
+    else {
+      die.object3D.rotation.set(0, 0, 0);
+      die.object3D.position.y = 0.15;
+      result.textContent = n;
+      setStatus(`You rolled ${n}!`);
+      roll.textContent = 'ROLL AGAIN';
+      roll.classList.remove('hidden');
+      rolling = false;
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+function preview() {
+  home.classList.add('hidden');
+  arUi.classList.remove('hidden');
+  $('previewStage').classList.remove('hidden');
+  const d = document.createElement('div');
+  d.className = 'preview-die';
+  [1, 6, 3, 4, 2, 5].forEach((n, i) => {
+    const f = document.createElement('div');
+    f.className = ['face front', 'face back', 'face right', 'face left', 'face top', 'face bottom'][i];
+    f.textContent = n;
+    d.appendChild(f);
+  });
+  $('previewStage').appendChild(d);
+  setStatus('3D preview — tap Roll Dice');
+  roll.classList.remove('hidden');
+  roll.onclick = () => { result.textContent = 1 + Math.floor(Math.random() * 6); };
+}
+
+$('start').onclick = startWebAR;
+$('preview').onclick = preview;
+roll.onclick = rollDice;
+$('exit').onclick = () => location.reload();
+window.addEventListener('resize', () => scene.components?.['mindar-image']?.resize?.());
