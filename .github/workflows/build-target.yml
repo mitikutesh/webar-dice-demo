@@ -1,0 +1,36 @@
+name: Build DICE AR target
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compile-target:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install canvas system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+      - name: Install compiler dependencies
+        run: npm install --no-save mind-ar@1.2.5 canvas@2.11.2
+      - name: Compile target.mind
+        run: node scripts/compile-target.mjs
+      - name: Commit generated target
+        run: |
+          if git diff --quiet -- target.mind; then
+            echo "target.mind is already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add target.mind
+          git commit -m "Build DICE AR target"
+          git push
