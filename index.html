@@ -6,22 +6,23 @@
   <meta name="theme-color" content="#080b16">
   <title>WebAR Dice</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 </head>
 <body>
   <section id="home" class="panel">
     <span class="badge">WEBAR DICE</span>
     <h1>Scan. Point. Roll.</h1>
-    <p>This version uses image-tracking WebAR, so it can work in mobile Safari as well as Android browsers.</p>
+    <p>Use the custom DICE AR card below as the image target. No native AR support is required.</p>
     <button id="start" class="primary">Start WebAR</button>
     <button id="preview" class="secondary">3D preview</button>
     <p id="compat" class="hint"></p>
-    <details>
-      <summary>Print the AR target</summary>
-      <p class="hint">After the camera opens, point it at the target image below. This target is from the MindAR demo assets and is ready to print.</p>
-      <img class="target" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.png" alt="AR target image">
-      <a class="download" target="_blank" rel="noopener" href="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.png">Open target image</a>
+    <details open>
+      <summary>Print the DICE AR target</summary>
+      <p class="hint">Print this card at any size. For best tracking, use a matte print, keep the full border visible, and avoid heavy glare.</p>
+      <img id="targetImage" class="target" src="target.svg" alt="Custom DICE AR image target">
+      <a class="download" href="target.svg" target="_blank" rel="noopener">Open / print target</a>
     </details>
     <details>
       <summary>Share QR code</summary>
@@ -31,7 +32,7 @@
 
   <div id="arUi" class="ar-ui hidden">
     <button id="exit" class="icon">×</button>
-    <div id="status" class="status">Point your camera at the printed AR target.</div>
+    <div id="status" class="status">Preparing AR…</div>
     <div id="result" class="result">—</div>
     <button id="roll" class="roll hidden">ROLL DICE</button>
   </div>
@@ -39,17 +40,14 @@
   <div id="previewStage" class="hidden"></div>
 
   <a-scene id="arScene" class="hidden"
-    mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; maxTrack: 1"
+    mindar-image="imageTargetSrc: ./target.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; maxTrack: 1; warmupTolerance: 2; missTolerance: 3"
     color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights; alpha: true"
     vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-    <a-assets>
-      <img id="targetImage" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.png">
-    </a-assets>
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-    <a-entity id="target" mindar-image-target="targetIndex: 0" visible="false">
+    <a-entity id="target" mindar-image-target="targetIndex: 0">
       <a-entity id="die" position="0 0 0.15" rotation="0 0 0" scale="0.45 0.45 0.45">
         <a-box width="0.7" height="0.7" depth="0.7" color="#f5f5f5" material="roughness: 0.25"></a-box>
-        <a-text value="1" align="center" color="#111" width="1.5" position="0 0 0.356" rotation="0 0 0"></a-text>
+        <a-text value="1" align="center" color="#111" width="1.5" position="0 0 0.356"></a-text>
         <a-text value="6" align="center" color="#111" width="1.5" position="0 0 -0.356" rotation="0 180 0"></a-text>
         <a-text value="3" align="center" color="#111" width="1.5" position="0.356 0 0" rotation="0 90 0"></a-text>
         <a-text value="4" align="center" color="#111" width="1.5" position="-0.356 0 0" rotation="0 -90 0"></a-text>
