@@ -1,29 +1,27 @@
 # WebAR Dice Demo
 
-A tiny QR-launched WebAR dice game. No app installation is required.
+A QR-launched **image-tracking WebAR** dice game. It no longer depends on WebXR `immersive-ar` surface placement.
 
-## Run
+## How it works
 
-Open the deployed HTTPS URL on a compatible mobile browser and scan the QR code. WebXR immersive AR requires HTTPS (localhost is also suitable for development). Chrome on supported Android devices is the simplest target.
+1. Open the HTTPS game URL from the QR code.
+2. Tap **Start WebAR** and allow camera access.
+3. Point the phone at the printed AR target shown on the start screen.
+4. When the target is recognized, a 3D dice appears over it.
+5. Tap **ROLL DICE**.
 
-## Game flow
+The AR layer uses MindAR image tracking with A-Frame. MindAR is an open-source WebAR SDK for image tracking and face tracking. See https://www.mindar.org/ and https://hiukim.github.io/mind-ar-js-doc/ for the underlying project and documentation.
 
-1. Scan QR code.
-2. Tap **Start AR**.
-3. Move the camera until a surface reticle appears.
-4. Tap the surface to place the die.
-5. Tap **Roll Dice**.
+## Target image
 
-A **3D preview** is included for devices without WebXR AR support.
+The demo currently uses the official MindAR example target so the project can be tested immediately without compiling a custom `.mind` target. The start screen includes the target image and an **Open target image** link.
+
+For production, replace the target with your own branded card/game-board artwork and compile a matching `.mind` target.
 
 ## GitHub Pages
 
-Enable Pages in repository Settings → Pages and select **Deploy from a branch**, branch `main`, folder `/ (root)`. The game is static and needs no server.
+This is a static site. Keep GitHub Pages enabled on `main` / root. HTTPS is required for camera access.
 
-## QR code
+## Compatibility
 
-The page generates a QR code for its own current URL. For printed marketing material, generate a permanent QR code pointing at your final Pages/custom-domain URL.
-
-## Notes
-
-The AR implementation uses WebXR hit testing and Three.js from a CDN. Browser/device support varies; AR availability should be checked on the target phones before a public event.
+Image-tracking WebAR is different from native WebXR surface AR: the camera feed and image tracking are handled by the WebAR SDK, which makes this approach suitable for browsers where `immersive-ar` is unavailable. Always test the exact target phones before a public event.
